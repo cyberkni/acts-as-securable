@@ -1,0 +1,181 @@
+= acts_as_securable
+
+The acts_as_securable plugin provides a model-level authorization system,
+configurable via a single authorization file. The goal of the system is to have
+authorization logic isolated from application logic.
+
+== Plugin features
+* Authorization at model level (specific columns)
+* Detailed exception reporting
+* Conditions such as membership of current user
+* Delegation of authorization check to associated objects
+* DSL for specifying rules in single file (config/authorization.rb)
+* Expressive scoped roles
+* Describe roles that apply to all objects
+
+== Requirements
+* At least one class which is specified as a grantee.
+* Exposing User.current
+* Each model to be secured needs the declaration acts_as_securable
+
+== Terminology
+securable:: An instance of a subclass of ActiveRecord::Base that is being secured.
+grantee:: a model which is granted authorization (usually a User, but could be a Group, etc)
+role:: represented by the AuthorizationRole model. Is not associated with a Grantee.
+grant:: represented by AuthorizationGrant. Joins a Grantee and a Role.
+action:: One of the ActiveRecord create, update or destroy actions, as well as update on specific columns, and adding resources
+
+== Roles
+A role is a singular name with one of three scopes. Roles are not yet associated
+with any particular User (grantee): instead, Grants associate Roles and Grantees.
+
+Role names must be scoped by the same indicators as variables in Ruby.
+
+Consider 3 ActiveRecord objects Car 1, Car 2 and Boat 1.
+
+    Global role: $admin
+
+This means that the holder holds $admin on all three objects.
+
+    Class role: @@admin on Cars
+
+This means that the holder holds @@admin on both Car 1 and Car 2, but not Boat 1.
+
+    Instance role: @admin on Car 2
+
+This means that the holder holds @admin on just Car 2, but not car 1.
+
+== Grants
+A grant is simply a join between a Grantee and a Role.
+
+== Error reporting
+
+== Actions
+The actions map directly to ActiveRecord methods.
+
+    creatable_by
+    updatable_by
+    destroyable_by
+
+There is an alias for all 3:
+    manageable_by
+
+Specific column updates have a slightly different syntax:
+    columns [:name], :updatable_by =>
+
+For associated resources, authorization on join tables can be specified by:
+    secure :groups do
+      resource [:member], :addable_by
+      resource [:member], :removable_by
+    end
+
+== Configuration Examples
+
+If the file does not exist, authorization is disabled.
+
+The contents of config/authorization.rb should look something like:
+
+    authorization do
+      secure :cars do
+        creatable_by [:@@manager, :@@administrator]
+        column [:name], :updatable_by => [:@@manager]
+      end
+    end
+
+In this example, it's declared that holders of the class roles manager and
+administrators can create Cars, and the class role manager can update the column
+Name on cars.
+
+Note that it doesn't make sense to assign create permissions to an instance role.
+
+    manageable_by :manager
+
+This is an alias for :creatable_by, :destroyable_by, and :updatable_by.
+
+    authorization do
+      column [:updated_at], :updatable_by => :all
+    end
+
+This rule exists before any secure blocks, so it applies to all objects.
+All Users can update the updated_at column if it exists on the object.
+
+    authorization do
+      secure :servers do
+        creatable_by :manager, :of_associated => :foo
+        creatable_by :manager, :of_associated => {:foo => :bar}
+      end
+    end
+
+This delegates the authorization check to an associated object.
+If the association specified does not exist, a NoMethodError will be raised.
+
+
+    creatable_by :manager, :if_user_in_associated => :root_users
+    creatable_by :manager, :if_user_in_associated => {:device => :root_users}
+
+This calls include? on the collection specified. The assumption is that
+the collection is a collection of Users.
+
+    updatable_by :@@manager, :if_no => :parent
+
+Checks method for nil.
+
+    destroyable_if_destroying_associated :foo => :bar
+
+This permits for the destroying of the object if the destroy call is due to
+:dependent => :destroy being declared on an associated object.
+
+    authorization do
+      secure :servers do
+        exclusive_role :@lockdown_manager
+        updatable_by [:@@manager, :@lockdown_manager]
+      end
+    end
+
+This allows instance roles to override class roles. What this enables is
+class roles that apply to an entire class, unless an exclusive role exists on them.
+
+In the example above, if an object has an exclusive role that applies to it
+(in this case @lockdown_manager), then a user that only holds the role
+@@manger cannot update it.
+If there is no exclusive role present, then the @@manager role applies.
+This effectively implements "deny" rules.
+
+= Issues
+  - Performance can improve in the role checking stage.
+  - Finder assumes that securable responds to 'name'.
+  - Choose better sigils so they don't need to be escaped in shell.
+  - Assumes that Grantees are polymorphic. You might not need this.
+
+= Testing
+
+== Testing the plugin
+run rake in the plugins folder.
+You need Shoulda and Flexmock installed.
+
+== Testing of application
+
+== Testing authorization rules
+
+
+= How to Install
+== Install by gem
+== Install from GitHub
+
+
+
+= Contact
+
+Maintained by
+
+Credits:
+Daniel Van Derveer, Host - "LGTM"
+Nick Eskelinen
+
+= License
+
+# $Id: //depot/google3/corp//server/vendor/plugins/acts_as_protected/README $
+#
+# Copyright:: Copyright 2010 Google Inc.
+# License:: All Rights Reserved.
+# Original Author:: Brandon Liu (mailto:bdon@google.com)
