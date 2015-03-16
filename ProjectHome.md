@@ -1,0 +1,1 @@
+An authorization plugin for Ruby on Rails.
